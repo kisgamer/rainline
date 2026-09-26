@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CloudRain, CloudSnow, CloudSun } from "lucide-react";
 import {
   Bar,
   CartesianGrid,
@@ -12,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import type { HourlyForecast, UnitSystem } from "@/lib/types";
-import { formatPercent, formatPrecipitation } from "@/lib/units";
+import { formatPercent, formatPrecipitation, formatTemperature } from "@/lib/units";
 
 interface Props {
   hourly: HourlyForecast[];
@@ -74,6 +75,43 @@ export function PrecipitationChart({ hourly, units, timezone, asOf }: Props) {
           ))}
         </div>
       </div>
+      {data.length > 0 && (
+        <>
+          <h3 className="hourly-forecast-title">Next 12 Hours</h3>
+          <div
+            className="hourly-forecast"
+            role="region"
+            aria-label="Hourly weather forecast, scroll horizontally for more hours"
+            tabIndex={0}
+          >
+            {data.slice(0, 12).map((point) => {
+              const WeatherIcon =
+                (point.snowFraction ?? 0) >= 0.5
+                  ? CloudSnow
+                  : (point.precipitationMm ?? 0) >= 0.2
+                    ? CloudRain
+                    : CloudSun;
+              return (
+                <div className="hourly-forecast-item" key={point.timestamp}>
+                  <span>
+                    {new Intl.DateTimeFormat("en", {
+                      timeZone: timezone,
+                      hour: "numeric",
+                    }).format(new Date(point.timestamp))}
+                  </span>
+                  <WeatherIcon size={25} strokeWidth={1.7} aria-hidden="true" />
+                  <strong>
+                    {formatTemperature(point.temperatureC, units)}
+                  </strong>
+                  <small>
+                    {formatPrecipitation(point.precipitationMm, units)}
+                  </small>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       <div className="legend">
         <span>
           <i className="legend-bar" /> Amount ({unitLabel})

@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown,
   ArrowRight,
-  ArrowUpRight,
   CalendarDays,
   ChartNoAxesCombined,
   CloudRain,
@@ -15,7 +13,6 @@ import {
   MapPin,
   RefreshCw,
   ShieldCheck,
-  Umbrella,
   WifiOff,
 } from "lucide-react";
 import { LocationSearch } from "@/components/location-search";
@@ -232,6 +229,11 @@ export default function Home() {
       ) ?? forecast?.hourly[0],
     [forecast, now],
   );
+  const currentWeather = condition(
+    currentHour?.conditionCode ?? null,
+    currentHour?.snowFraction ?? null,
+  );
+  const CurrentWeatherIcon = currentWeather.icon;
   const nextRainText =
     nextRain && forecast
       ? displayDate(nextRain.timestamp, forecast.location.timezone, {
@@ -290,31 +292,37 @@ export default function Home() {
           </div>
         </header>
 
-        <div className={forecast ? "masthead has-forecast" : "masthead"}>
-          <div>
-            <p className="eyebrow">
-              <span className="eyebrow-line" /> PRECIPITATION, IN FOCUS
-            </p>
-            <h1>
-              Know when the rain <br />
-              <em>is coming.</em>
-            </h1>
-            <p className="masthead-copy">
-              An honest view of what the sky has planned, and how certain the
-              forecast is.
-            </p>
-          </div>
-          <div className="masthead-orb" aria-hidden="true">
-            <div className="orb-ring one" />
-            <div className="orb-ring two" />
-            <div className="orb-core">
-              <Droplets size={59} strokeWidth={1.15} />
+        {!forecast && (
+          <div className="masthead">
+            <div>
+              <p className="eyebrow">
+                <span className="eyebrow-line" /> WEATHER, MADE CLEAR
+              </p>
+              <h1>
+                Weather for <br />
+                <em>your day.</em>
+              </h1>
+              <p className="masthead-copy">
+                Current conditions, rain timing, and the next 7 days—together in
+                one clear forecast.
+              </p>
+            </div>
+            <div className="masthead-orb" aria-hidden="true">
+              <div className="orb-ring one" />
+              <div className="orb-ring two" />
+              <div className="orb-core">
+                <CloudSun size={59} strokeWidth={1.15} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <section
-          className="search-section"
+          className={
+            forecast
+              ? "search-section search-section-compact"
+              : "search-section"
+          }
           aria-label="Choose a forecast location"
         >
           <div className="search-title">
@@ -344,38 +352,27 @@ export default function Home() {
         ) : !forecast ? (
           <section className="empty-state panel">
             <div className="empty-graphic">
-              <Umbrella size={42} />
+              <CloudSun size={42} aria-hidden="true" />
             </div>
-            <p className="eyebrow">YOUR FORECAST STARTS HERE</p>
-            <h2>Pick a place. See the whole picture.</h2>
+            <p className="eyebrow">START WITH A LOCATION</p>
+            <h2>Find your forecast</h2>
             <p>
-              Search for a city or use your location to see the next rain
-              window, hourly amounts, and how predictable the forecast is.
+              Search for a city or use your location to see current weather,
+              hourly rain, and the 7-day outlook.
             </p>
-            <div className="empty-steps">
-              <span>
-                01 <strong>Choose a place</strong>
-              </span>
-              <span>
-                02 <strong>Explore the rain</strong>
-              </span>
-              <span>
-                03 <strong>Plan with confidence</strong>
-              </span>
-            </div>
           </section>
         ) : (
           <>
             <div className="forecast-toolbar" id="now">
               <div>
-                <p className="eyebrow">FORECAST FOR</p>
-                <h2>
+                <p className="eyebrow">CURRENT WEATHER</p>
+                <h1>
                   {forecast.location.name}
                   <span>
                     {forecast.location.country &&
                       `, ${forecast.location.country}`}
                   </span>
-                </h2>
+                </h1>
               </div>
               <div className="forecast-meta">
                 <span className={isStale ? "status-pill stale" : "status-pill"}>
@@ -422,64 +419,67 @@ export default function Home() {
                 </span>
               </div>
             )}
-            <div className="overview-grid">
-              <section className="hero-card" aria-labelledby="next-rain-title">
-                <div className="hero-card-top">
-                  <span>
-                    <CloudRain size={17} /> NEXT PRECIPITATION
+            <section
+              className="current-weather"
+              aria-labelledby="current-weather-title"
+            >
+              <h2 id="current-weather-title" className="visually-hidden">
+                Current Conditions
+              </h2>
+              <div className="current-weather-main">
+                <div className="current-conditions">
+                  <p className="current-kicker">RIGHT NOW</p>
+                  <div className="current-reading">
+                    <div className="current-weather-icon" aria-hidden="true">
+                      <CurrentWeatherIcon size={86} strokeWidth={1.25} />
+                    </div>
+                    <div>
+                      <strong className="current-temperature">
+                        {formatTemperature(
+                          currentHour?.temperatureC ?? null,
+                          units,
+                        )}
+                      </strong>
+                      <p className="current-condition-label">
+                        {currentWeather.label}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="current-high-low">
+                    High{" "}
+                    {formatTemperature(today?.temperatureMaxC ?? null, units)}
+                    <span aria-hidden="true"> · </span>
+                    Low{" "}
+                    {formatTemperature(today?.temperatureMinC ?? null, units)}
+                  </p>
+                </div>
+                <div className="next-rain-block">
+                  <span className="rain-outlook-label">
+                    <CloudRain size={18} aria-hidden="true" /> RAIN OUTLOOK
                   </span>
-                  <ArrowUpRight size={21} />
-                </div>
-                <div className="hero-main">
-                  <div>
-                    <p className="hero-caption">
-                      The next expected rain window
-                    </p>
-                    <h2 id="next-rain-title">{nextRainText}</h2>
-                    <p className="hero-sub">
-                      {nextRain
-                        ? `${formatPrecipitation(nextRain.precipitationMm, units)} expected that hour`
-                        : "No measurable rain in this forecast window"}
-                    </p>
-                  </div>
-                  <div className="hero-weather-icon">
-                    <CloudRain size={75} strokeWidth={1.25} />
-                  </div>
-                </div>
-                <div className="hero-card-bottom">
+                  <p>Next precipitation</p>
+                  <h3>{nextRainText}</h3>
                   <span>
-                    <span className="tiny-dot" />{" "}
                     {nextRain
-                      ? `${formatPercent(nextRain.precipitationProbability)} chance`
-                      : "No measurable rain forecast"}
-                  </span>
-                  <span>
-                    Next 7 days <ArrowRight size={15} />
+                      ? `${formatPrecipitation(nextRain.precipitationMm, units)} that hour · ${formatPercent(nextRain.precipitationProbability)} chance`
+                      : "No measurable rain in this forecast window"}
                   </span>
                 </div>
-              </section>
-              <div className="stat-grid">
-                <article className="stat-card">
-                  <div className="stat-icon blue">
-                    <Droplets size={21} />
-                  </div>
-                  <p>Today’s rain</p>
+              </div>
+              <div className="weather-facts">
+                <div className="weather-fact">
+                  <Droplets size={22} aria-hidden="true" />
+                  <span>Today’s rain</span>
                   <strong>{summary.amount}</strong>
-                  <small>Expected total</small>
-                </article>
-                <article className="stat-card">
-                  <div className="stat-icon teal">
-                    <CloudRain size={21} />
-                  </div>
-                  <p>Rain chance</p>
+                </div>
+                <div className="weather-fact">
+                  <CloudRain size={22} aria-hidden="true" />
+                  <span>Rain chance</span>
                   <strong>{summary.probability}</strong>
-                  <small>Probability today</small>
-                </article>
-                <article className="stat-card">
-                  <div className="stat-icon violet">
-                    <ShieldCheck size={21} />
-                  </div>
-                  <p>Predictability</p>
+                </div>
+                <div className="weather-fact">
+                  <ShieldCheck size={22} aria-hidden="true" />
+                  <span>Predictability</span>
                   <strong>
                     {formatPercent(today?.predictability ?? null)}
                   </strong>
@@ -490,22 +490,9 @@ export default function Home() {
                     )}{" "}
                     confidence
                   </small>
-                </article>
-                <article className="stat-card">
-                  <div className="stat-icon amber">
-                    <CloudSun size={21} />
-                  </div>
-                  <p>Temperature</p>
-                  <strong>
-                    {formatTemperature(
-                      currentHour?.temperatureC ?? null,
-                      units,
-                    )}
-                  </strong>
-                  <small>Current forecast hour</small>
-                </article>
+                </div>
               </div>
-            </div>
+            </section>
             <PrecipitationChart
               hourly={forecast.hourly}
               units={units}
@@ -520,33 +507,22 @@ export default function Home() {
               <div className="panel-heading">
                 <div>
                   <p className="eyebrow">LOOKING AHEAD</p>
-                  <h2 id="days-title">The next seven days</h2>
+                  <h2 id="days-title">7-Day Forecast</h2>
                   <p className="subtle">
                     Rain at a glance, with forecast confidence alongside
                   </p>
                 </div>
-                <span className="seven-day-mark">
-                  7-DAY OUTLOOK <ArrowDown size={16} />
-                </span>
               </div>
-              <p className="days-swipe-hint" aria-hidden="true">
-                Swipe to explore all 7 days <ArrowRight size={15} />
-              </p>
-              <div
-                className="days-grid"
-                role="region"
-                aria-label="Seven-day forecast, scroll horizontally for more days"
-                tabIndex={0}
-              >
+              <div className="forecast-days">
                 {forecast.daily.map((day, index) => {
                   const weather = condition(day.conditionCode);
                   const Icon = weather.icon;
                   return (
-                    <article key={day.date} className="day-card">
-                      <div className="day-top">
-                        <span>
+                    <article key={day.date} className="day-card forecast-day">
+                      <div className="forecast-day-name">
+                        <strong>
                           {index === 0 ? "Today" : dayLabel(day.date)}
-                        </span>
+                        </strong>
                         <small>
                           {new Intl.DateTimeFormat("en", {
                             month: "short",
@@ -555,38 +531,51 @@ export default function Home() {
                           }).format(new Date(`${day.date}T12:00:00Z`))}
                         </small>
                       </div>
-                      <div className="day-condition">
-                        <Icon size={25} strokeWidth={1.7} />
+                      <div className="forecast-day-condition">
+                        <Icon size={28} strokeWidth={1.7} aria-hidden="true" />
                         <span>{weather.label}</span>
                       </div>
-                      <strong className="day-amount">
-                        {formatPrecipitation(day.precipitationMm, units)}
-                      </strong>
-                      <span className="day-detail">
-                        {formatPercent(day.precipitationProbability)} rain
-                        chance
-                      </span>
-                      <div className="day-confidence">
+                      <div className="forecast-day-rain">
+                        <Droplets size={17} aria-hidden="true" />
+                        <strong>
+                          {formatPrecipitation(day.precipitationMm, units)}
+                        </strong>
+                        <small>
+                          {formatPercent(day.precipitationProbability)} chance
+                        </small>
+                      </div>
+                      <div className="forecast-day-temp">
+                        <strong
+                          aria-label={`High ${formatTemperature(day.temperatureMaxC, units)}`}
+                        >
+                          {formatTemperature(day.temperatureMaxC, units)}
+                        </strong>
+                        <span
+                          aria-hidden="true"
+                          className="temperature-track"
+                        />
+                        <small
+                          aria-label={`Low ${formatTemperature(day.temperatureMinC, units)}`}
+                        >
+                          {formatTemperature(day.temperatureMinC, units)}
+                        </small>
+                      </div>
+                      <div className="forecast-day-confidence">
                         <span>Predictability</span>
                         <strong>{formatPercent(day.predictability)}</strong>
+                        <small>
+                          {predictabilityLabel(
+                            day.predictability,
+                            day.predictabilityClass,
+                          )}{" "}
+                          confidence
+                        </small>
+                        <span className="confidence-track" aria-hidden="true">
+                          <span
+                            style={{ width: `${day.predictability ?? 0}%` }}
+                          />
+                        </span>
                       </div>
-                      <div className="confidence-track">
-                        <span
-                          style={{ width: `${day.predictability ?? 0}%` }}
-                        />
-                      </div>
-                      <small className="day-confidence-class">
-                        {predictabilityLabel(
-                          day.predictability,
-                          day.predictabilityClass,
-                        )}{" "}
-                        confidence
-                      </small>
-                      <small className="day-temp">
-                        {formatTemperature(day.temperatureMinC, units)}{" "}
-                        <span>→</span>{" "}
-                        {formatTemperature(day.temperatureMaxC, units)}
-                      </small>
                     </article>
                   );
                 })}

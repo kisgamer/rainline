@@ -93,7 +93,7 @@ test("search, forecast ranges, units, and persisted preference", async ({
     page.getByRole("heading", { name: "Precipitation forecast" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "The next seven days" }),
+    page.getByRole("heading", { name: "7-Day Forecast" }),
   ).toBeVisible();
   await expect(page.locator(".day-card")).toHaveCount(7);
   if (process.env.RAINLINE_SCREENSHOT === "1") {
@@ -125,7 +125,7 @@ test("GPS requires a user click and loads a forecast", async ({
   await context.setGeolocation({ latitude: 47.5584, longitude: 7.5733 });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Pick a place. See the whole picture." }),
+    page.getByRole("heading", { name: "Find your forecast" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Use my location" }).click();
   await expect(page.getByRole("heading", { name: /Basel/ })).toBeVisible();
@@ -221,10 +221,13 @@ test("mobile forecast stays within the viewport and keeps sections reachable", a
   await dock.getByRole("link", { name: "7 Days" }).click();
   await expect(page).toHaveURL(/#outlook$/);
 
-  const days = page.getByRole("region", { name: /Seven-day forecast/ });
+  const hours = page.getByRole("region", { name: /Hourly weather forecast/ });
   expect(
-    await days.evaluate((element) => element.scrollWidth > element.clientWidth),
+    await hours.evaluate(
+      (element) => element.scrollWidth > element.clientWidth,
+    ),
   ).toBe(true);
+  await expect(page.locator(".forecast-day")).toHaveCount(7);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
