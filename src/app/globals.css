@@ -25,7 +25,13 @@ body {
     radial-gradient(ellipse 70% 28% at 53% -7%, #193a55 0%, transparent 73%),
     var(--bg);
   color: var(--text);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   min-height: 100vh;
 }
 button,
@@ -1523,12 +1529,11 @@ body {
 .current-weather {
   position: relative;
   overflow: hidden;
-  border: 1px solid #73b7d8;
-  border-radius: 23px;
+  border: 1px solid #46647b;
+  border-radius: 26px;
   background:
-    radial-gradient(circle at 13% 4%, #b9e9f655 0, transparent 25%),
-    radial-gradient(circle at 83% 18%, #9ad5ec4d 0, transparent 26%),
-    linear-gradient(145deg, #3f91c0 0%, #1c6497 54%, #10466f 100%);
+    radial-gradient(ellipse at 0% 0%, #32667d80 0, transparent 60%),
+    linear-gradient(125deg, #172f44, #112236 65%, #172c40);
   box-shadow: 0 25px 65px #0003;
   color: #fff;
 }
@@ -1547,10 +1552,10 @@ body {
 .current-weather-main {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(250px, 0.8fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(250px, 1.1fr);
   align-items: center;
   gap: 30px;
-  padding: 27px 31px 25px;
+  padding: 32px;
 }
 .current-kicker,
 .rain-outlook-label {
@@ -1578,8 +1583,8 @@ body {
 .current-temperature {
   display: block;
   font-size: clamp(66px, 8vw, 99px);
-  font-weight: 500;
-  letter-spacing: -0.095em;
+  font-weight: 300;
+  letter-spacing: -0.075em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1597,11 +1602,40 @@ body {
 }
 .next-rain-block {
   min-width: 0;
-  border: 1px solid #d5f4ff55;
-  border-radius: 17px;
-  padding: 22px 24px;
-  background: #083a6080;
-  backdrop-filter: blur(10px);
+  border: 0;
+  border-top: 1px solid #46647b;
+  border-radius: 0;
+  padding: 18px 0 0;
+  margin-top: 22px;
+  background: transparent;
+}
+.day-overview {
+  min-width: 0;
+}
+.summary-eyebrow {
+  color: #8fded9;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  margin: 0 0 12px;
+}
+.today-summary {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: 450;
+  line-height: 1.55;
+  letter-spacing: -0.025em;
+  text-wrap: pretty;
+  color: #edf6fa;
+}
+.forecast-day-summary {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 2px 0 3px;
+  color: #b8cbd7;
+  font-size: 13px;
+  line-height: 1.6;
+  text-wrap: pretty;
 }
 .rain-outlook-label {
   display: flex;
@@ -1614,8 +1648,8 @@ body {
   font-size: 13px;
 }
 .next-rain-block h3 {
-  margin: 0 0 9px;
-  font-size: clamp(24px, 2.9vw, 35px);
+  margin: 9px 0 5px;
+  font-size: 25px;
   letter-spacing: -0.055em;
   line-height: 1.12;
   text-wrap: balance;
@@ -1628,8 +1662,8 @@ body {
 .weather-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid #c3ecfc60;
-  background: #07436e66;
+  border-top: 1px solid #46647b;
+  background: #07172655;
 }
 .weather-fact {
   display: grid;
@@ -1640,7 +1674,7 @@ body {
   padding: 12px 25px;
 }
 .weather-fact + .weather-fact {
-  border-left: 1px solid #c3ecfc40;
+  border-left: 1px solid #46647b;
 }
 .weather-fact svg {
   grid-row: 1 / 3;
@@ -1712,7 +1746,7 @@ body {
   padding: 0 19px;
   border: 1px solid #2b506c;
   border-radius: 18px;
-  background: linear-gradient(145deg, #142f48, #10253b);
+  background: linear-gradient(145deg, #142b40, #102135);
 }
 .forecast-day.day-card {
   display: grid;
@@ -1835,7 +1869,7 @@ body {
   }
   .forecast-day.day-card {
     grid-template-columns: 90px 1fr 1fr;
-    grid-template-areas: "name condition temp" "name rain confidence";
+    grid-template-areas: "name condition temp" "name rain confidence" "summary summary summary";
     row-gap: 8px;
   }
   .forecast-day-name {
@@ -1852,6 +1886,9 @@ body {
   }
   .forecast-day-confidence {
     grid-area: confidence;
+  }
+  .forecast-day-summary {
+    grid-area: summary;
   }
 }
 @media (max-width: 750px) {
@@ -1915,8 +1952,8 @@ body {
     font-size: 12px;
   }
   .next-rain-block {
-    padding: 13px 16px;
-    border-radius: 13px;
+    padding: 15px 0 0;
+    border-radius: 0;
   }
   .next-rain-block p {
     margin: 10px 0 3px;
@@ -1940,7 +1977,7 @@ body {
   }
   .weather-fact span {
     font-size: 11px;
-    white-space: nowrap;
+    line-height: 1.35;
   }
   .weather-fact strong {
     font-size: 19px;
@@ -1953,7 +1990,7 @@ body {
   }
   .forecast-day.day-card {
     grid-template-columns: 1fr 1fr;
-    grid-template-areas: "name temp" "condition rain" "confidence confidence";
+    grid-template-areas: "name temp" "condition rain" "summary summary" "confidence confidence";
     min-height: 128px;
     gap: 7px 10px;
     padding: 13px 3px;

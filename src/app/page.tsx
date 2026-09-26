@@ -19,6 +19,7 @@ import { LocationSearch } from "@/components/location-search";
 import { InstallApp } from "@/components/install-app";
 import { PrecipitationChart } from "@/components/precipitation-chart";
 import { loadLastForecast, saveLastForecast } from "@/lib/offline";
+import { summarizeDay } from "@/lib/day-summary";
 import type { DailyForecast, Forecast, Place, UnitSystem } from "@/lib/types";
 import {
   formatPercent,
@@ -453,23 +454,27 @@ export default function Home() {
                     {formatTemperature(today?.temperatureMinC ?? null, units)}
                   </p>
                 </div>
-                <div className="next-rain-block">
-                  <span className="rain-outlook-label">
-                    <CloudRain size={18} aria-hidden="true" /> RAIN OUTLOOK
-                  </span>
-                  <p>Next precipitation</p>
-                  <h3>{nextRainText}</h3>
-                  <span>
-                    {nextRain
-                      ? `${formatPrecipitation(nextRain.precipitationMm, units)} that hour · ${formatPercent(nextRain.precipitationProbability)} chance`
-                      : "No measurable rain in this forecast window"}
-                  </span>
+                <div className="day-overview">
+                  <p className="summary-eyebrow">TODAY, AT A GLANCE</p>
+                  <p className="today-summary">{summarizeDay(today, units)}</p>
+                  <div className="next-rain-block">
+                    <span className="rain-outlook-label">
+                      <CloudRain size={18} aria-hidden="true" /> NEXT
+                      PRECIPITATION
+                    </span>
+                    <h3>{nextRainText}</h3>
+                    <span>
+                      {nextRain
+                        ? `${formatPrecipitation(nextRain.precipitationMm, units)} that hour · ${formatPercent(nextRain.precipitationProbability)} chance`
+                        : "No measurable rain in this forecast window"}
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="weather-facts">
                 <div className="weather-fact">
                   <Droplets size={22} aria-hidden="true" />
-                  <span>Today’s rain</span>
+                  <span>Daily precipitation</span>
                   <strong>{summary.amount}</strong>
                 </div>
                 <div className="weather-fact">
@@ -576,6 +581,9 @@ export default function Home() {
                           />
                         </span>
                       </div>
+                      <p className="forecast-day-summary">
+                        {summarizeDay(day, units)}
+                      </p>
                     </article>
                   );
                 })}
