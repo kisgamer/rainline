@@ -130,9 +130,11 @@ test("search, forecast ranges, units, and persisted preference", async ({
     "aria-pressed",
     "true",
   );
+  await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("button", { name: "°F · in" }).click();
   await expect(page.getByText("0.2 in").first()).toBeVisible();
   await page.reload();
+  await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByRole("button", { name: "°F · in" })).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -154,6 +156,34 @@ test("GPS requires a user click and loads a forecast", async ({
   await expect(page.getByRole("heading", { name: /Basel/ })).toBeVisible();
 });
 
+test("settings opens on demand and closes with Escape or an outside click", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  const button = page.getByRole("button", { name: "Settings" });
+  const panel = page.getByRole("region", { name: "Settings" });
+  await expect(panel).toHaveCount(0);
+  await button.click();
+  await expect(button).toHaveAttribute("aria-expanded", "true");
+  await expect(panel.getByRole("group", { name: "Units" })).toBeVisible();
+  await expect(panel.getByLabel("Weather source")).toBeVisible();
+  await expect(
+    panel.getByRole("group", { name: "Forecast tone" }),
+  ).toBeVisible();
+  if (process.env.RAINLINE_SCREENSHOT === "1") {
+    await page.screenshot({
+      path: `/tmp/rainline-settings-${testInfo.project.name}.png`,
+      fullPage: true,
+    });
+  }
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(button).toBeFocused();
+  await button.click();
+  await page.locator(".brand").click();
+  await expect(panel).toHaveCount(0);
+});
+
 test("forecast tone changes the copy without refetching and persists on reload", async ({
   page,
 }) => {
@@ -162,6 +192,8 @@ test("forecast tone changes the copy without refetching and persists on reload",
     .getByRole("combobox", { name: "Search for a location" })
     .fill("Basel");
   await page.getByRole("option", { name: /Basel/ }).click();
+  const settingsButton = page.getByRole("button", { name: "Settings" });
+  await settingsButton.click();
   const tone = page.getByRole("group", { name: "Forecast tone" });
   await expect(tone.getByRole("button", { name: "Playful" })).toHaveAttribute(
     "aria-pressed",
@@ -192,6 +224,7 @@ test("forecast tone changes the copy without refetching and persists on reload",
   await expect(summary).toContainText("Expected total: 4.2 mm");
   await expect(page.locator(".forecast-day-summary")).toHaveCount(7);
   await page.reload();
+  await settingsButton.click();
   await expect(tone.getByRole("button", { name: "Snarky" })).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -208,6 +241,7 @@ test("weather source switches, persists, and never relabels another source offli
     .fill("Basel");
   await page.getByRole("option", { name: /Basel/ }).click();
   await expect(page.getByRole("heading", { name: /Basel/ })).toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
   const source = page.getByLabel("Weather source");
   await source.selectOption("open-meteo");
   await expect(
@@ -220,6 +254,7 @@ test("weather source switches, persists, and never relabels another source offli
     page.locator("footer").getByRole("link", { name: "Open-Meteo" }),
   ).toBeVisible();
   await page.reload();
+  await page.getByRole("button", { name: "Settings" }).click();
   await expect(source).toHaveValue("open-meteo");
   await expect(page.getByRole("heading", { name: /Basel/ })).toBeVisible();
   expect(
@@ -233,6 +268,7 @@ test("weather source switches, persists, and never relabels another source offli
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   await page.context().setOffline(true);
   await page.reload();
+  await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.getByText(/Saved forecast from/)).toBeVisible();
   await expect(source).toHaveValue("open-meteo");
   await source.selectOption("meteoblue");
@@ -348,7 +384,7 @@ test("mobile forecast stays within the viewport and keeps sections reachable", a
     dock.getByRole("link", { name: "Now" }),
     dock.getByRole("link", { name: "Hourly" }),
     page.getByRole("button", { name: "Install Rainline" }),
-    page.getByRole("button", { name: "°C · mm" }),
+    page.getByRole("button", { name: "Settings" }),
   ]) {
     const bounds = await target.boundingBox();
     expect(bounds?.height).toBeGreaterThanOrEqual(44);

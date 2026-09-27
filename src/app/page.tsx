@@ -11,6 +11,7 @@ import {
   Info,
   MapPin,
   RefreshCw,
+  Settings2,
   ShieldCheck,
   WifiOff,
 } from "lucide-react";
@@ -88,8 +89,11 @@ export default function Home() {
   const [recent, setRecent] = useState<Place | null>(null);
   const [attemptedPlace, setAttemptedPlace] = useState<Place | null>(null);
   const [ready, setReady] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const requestId = useRef(0);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
 
   const showSavedForecast = useCallback(
     async (source: WeatherProvider = providerRef.current) => {
@@ -231,6 +235,28 @@ export default function Home() {
     };
   }, [showSavedForecast, loadForecast]);
 
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !settingsRef.current?.contains(event.target)
+      )
+        setSettingsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSettingsOpen(false);
+      settingsButtonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [settingsOpen]);
+
   function changeUnits(next: UnitSystem) {
     setUnits(next);
     try {
@@ -330,66 +356,101 @@ export default function Home() {
               POWERED BY <strong>{sourceLabel}</strong>
             </span>
             <InstallApp />
-            <div className="unit-toggle" role="group" aria-label="Units">
-              <button
-                type="button"
-                aria-pressed={units === "metric"}
-                onClick={() => changeUnits("metric")}
-              >
-                °C · mm
-              </button>
-              <button
-                type="button"
-                aria-pressed={units === "imperial"}
-                onClick={() => changeUnits("imperial")}
-              >
-                °F · in
-              </button>
-            </div>
-          </div>
-        </header>
-        <div className="preferences-bar">
-          <div className="provider-control">
-            <label htmlFor="weather-provider">Weather source</label>
-            <select
-              id="weather-provider"
-              name="provider"
-              value={provider}
-              disabled={!ready || loading}
-              onChange={(event) =>
-                changeProvider(event.target.value as WeatherProvider)
-              }
-            >
-              <option value="meteoblue">meteoblue</option>
-              <option value="open-meteo">Open-Meteo</option>
-            </select>
-          </div>
-          <div className="forecast-tone">
-            <span id="forecast-tone-label">Forecast tone</span>
             <div
-              className="tone-options"
-              role="group"
-              aria-labelledby="forecast-tone-label"
+              className="settings-control"
+              ref={settingsRef}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget))
+                  setSettingsOpen(false);
+              }}
             >
-              {(["straight", "playful", "snarky"] as ForecastTone[]).map(
-                (option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    aria-pressed={tone === option}
-                    onClick={() => changeTone(option)}
-                  >
-                    {option === "straight"
-                      ? "Straight"
-                      : option === "playful"
-                        ? "Playful"
-                        : "Snarky"}
-                  </button>
-                ),
+              <button
+                ref={settingsButtonRef}
+                className="settings-button"
+                type="button"
+                aria-label="Settings"
+                aria-expanded={settingsOpen}
+                aria-controls={settingsOpen ? "settings-panel" : undefined}
+                onClick={() => setSettingsOpen((open) => !open)}
+              >
+                <Settings2 size={18} aria-hidden="true" />
+                <span>Settings</span>
+              </button>
+              {settingsOpen && (
+                <section
+                  className="settings-panel"
+                  id="settings-panel"
+                  aria-labelledby="settings-title"
+                >
+                  <div className="settings-panel-heading">
+                    <p className="settings-title" id="settings-title">
+                      Settings
+                    </p>
+                    <p>Make the forecast your own.</p>
+                  </div>
+                  <fieldset className="settings-field">
+                    <legend>Units</legend>
+                    <div className="unit-toggle">
+                      <button
+                        type="button"
+                        aria-pressed={units === "metric"}
+                        onClick={() => changeUnits("metric")}
+                      >
+                        °C · mm
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={units === "imperial"}
+                        onClick={() => changeUnits("imperial")}
+                      >
+                        °F · in
+                      </button>
+                    </div>
+                  </fieldset>
+                  <div className="settings-field provider-control">
+                    <label htmlFor="weather-provider">Weather source</label>
+                    <select
+                      id="weather-provider"
+                      name="provider"
+                      value={provider}
+                      disabled={!ready || loading}
+                      onChange={(event) =>
+                        changeProvider(event.target.value as WeatherProvider)
+                      }
+                    >
+                      <option value="meteoblue">meteoblue</option>
+                      <option value="open-meteo">Open-Meteo</option>
+                    </select>
+                    <p className="settings-hint">
+                      Switching sources refreshes the forecast.
+                    </p>
+                  </div>
+                  <fieldset className="settings-field forecast-tone">
+                    <legend>Forecast tone</legend>
+                    <div className="tone-options">
+                      {(
+                        ["straight", "playful", "snarky"] as ForecastTone[]
+                      ).map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          aria-pressed={tone === option}
+                          onClick={() => changeTone(option)}
+                        >
+                          {option === "straight"
+                            ? "Straight"
+                            : option === "playful"
+                              ? "Playful"
+                              : "Snarky"}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                </section>
               )}
             </div>
           </div>
-        </div>
+        </header>
 
         {!forecast && (
           <div className="masthead">
