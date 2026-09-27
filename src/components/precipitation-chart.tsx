@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CloudRain, CloudSnow, CloudSun } from "lucide-react";
+import { condition } from "@/lib/conditions";
 import {
   Bar,
   CartesianGrid,
@@ -12,18 +12,29 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { HourlyForecast, UnitSystem } from "@/lib/types";
-import { formatPercent, formatPrecipitation, formatTemperature } from "@/lib/units";
+import type { HourlyForecast, UnitSystem, WeatherProvider } from "@/lib/types";
+import {
+  formatPercent,
+  formatPrecipitation,
+  formatTemperature,
+} from "@/lib/units";
 
 interface Props {
   hourly: HourlyForecast[];
   units: UnitSystem;
   timezone: string;
   asOf: number;
+  source?: WeatherProvider;
 }
 type Range = 24 | 48 | 168;
 
-export function PrecipitationChart({ hourly, units, timezone, asOf }: Props) {
+export function PrecipitationChart({
+  hourly,
+  units,
+  timezone,
+  asOf,
+  source = "meteoblue",
+}: Props) {
   const [range, setRange] = useState<Range>(24);
   const data = useMemo(
     () =>
@@ -85,12 +96,12 @@ export function PrecipitationChart({ hourly, units, timezone, asOf }: Props) {
             tabIndex={0}
           >
             {data.slice(0, 12).map((point) => {
-              const WeatherIcon =
-                (point.snowFraction ?? 0) >= 0.5
-                  ? CloudSnow
-                  : (point.precipitationMm ?? 0) >= 0.2
-                    ? CloudRain
-                    : CloudSun;
+              const weather = condition(
+                point.conditionCode,
+                point.snowFraction,
+                source,
+              );
+              const WeatherIcon = weather.icon;
               return (
                 <div className="hourly-forecast-item" key={point.timestamp}>
                   <span>
@@ -100,6 +111,7 @@ export function PrecipitationChart({ hourly, units, timezone, asOf }: Props) {
                     }).format(new Date(point.timestamp))}
                   </span>
                   <WeatherIcon size={25} strokeWidth={1.7} aria-hidden="true" />
+                  <span className="visually-hidden">{weather.label}</span>
                   <strong>
                     {formatTemperature(point.temperatureC, units)}
                   </strong>

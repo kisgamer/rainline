@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getForecast, logApiError } from "@/lib/server/meteoblue";
+import { getOpenMeteoForecast } from "@/lib/server/open-meteo";
 import type { Place } from "@/lib/types";
 
 function parsePlace(params: URLSearchParams): Place | null {
@@ -55,6 +56,17 @@ function parsePlace(params: URLSearchParams): Place | null {
 }
 
 export async function GET(request: NextRequest) {
+  const provider = request.nextUrl.searchParams.get("provider") ?? "meteoblue";
+  if (provider !== "meteoblue" && provider !== "open-meteo")
+    return NextResponse.json(
+      {
+        error: {
+          code: "VALIDATION",
+          message: "Choose a supported weather source.",
+        },
+      },
+      { status: 400 },
+    );
   const requestedUnits = request.nextUrl.searchParams.get("units");
   if (requestedUnits && requestedUnits !== "metric") {
     return NextResponse.json(
@@ -80,11 +92,16 @@ export async function GET(request: NextRequest) {
     );
   }
   try {
-    return NextResponse.json(await getForecast(place), {
-      headers: {
-        "Cache-Control": "public, s-maxage=900, stale-while-revalidate=900",
+    return NextResponse.json(
+      await (provider === "open-meteo"
+        ? getOpenMeteoForecast(place)
+        : getForecast(place)),
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=900, stale-while-revalidate=900",
+        },
       },
-    });
+    );
   } catch (error) {
     const safe = logApiError("forecast", error);
     return NextResponse.json(

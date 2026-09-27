@@ -59,6 +59,8 @@ test.beforeEach(async ({ page }) => {
             : input instanceof URL
               ? input.href
               : input.url;
+        if (url.startsWith("/api/") && !navigator.onLine)
+          return Promise.reject(new TypeError("Failed to fetch"));
         if (url.startsWith("/api/locations?"))
           return Promise.resolve(
             new Response(JSON.stringify({ locations: [place] }), {
@@ -66,13 +68,34 @@ test.beforeEach(async ({ page }) => {
               headers: { "Content-Type": "application/json" },
             }),
           );
-        if (url.startsWith("/api/forecast?"))
+        if (url.startsWith("/api/forecast?")) {
+          const source =
+            new URL(url, location.origin).searchParams.get("provider") ??
+            "meteoblue";
+          const response =
+            source === "open-meteo"
+              ? {
+                  ...forecast,
+                  source,
+                  hourly: forecast.hourly.map((hour) => ({
+                    ...hour,
+                    conditionCode: 61,
+                  })),
+                  daily: forecast.daily.map((day) => ({
+                    ...day,
+                    conditionCode: 61,
+                    predictability: null,
+                    predictabilityClass: null,
+                  })),
+                }
+              : { ...forecast, source };
           return Promise.resolve(
-            new Response(JSON.stringify(forecast), {
+            new Response(JSON.stringify(response), {
               status: 200,
               headers: { "Content-Type": "application/json" },
             }),
           );
+        }
         return nativeFetch(input, init);
       };
     },
@@ -129,6 +152,94 @@ test("GPS requires a user click and loads a forecast", async ({
   ).toBeVisible();
   await page.getByRole("button", { name: "Use my location" }).click();
   await expect(page.getByRole("heading", { name: /Basel/ })).toBeVisible();
+});
+
+test("forecast tone changes the copy without refetching and persists on reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("combobox", { name: "Search for a location" })
+    .fill("Basel");
+  await page.getByRole("option", { name: /Basel/ }).click();
+  const tone = page.getByRole("group", { name: "Forecast tone" });
+  await expect(tone.getByRole("button", { name: "Playful" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const summary = page.locator(".today-summary");
+  const before = await summary.textContent();
+  await page.evaluate(() => {
+    const original = window.fetch;
+    window.fetch = (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (url.startsWith("/api/forecast?"))
+        throw new Error("Tone must not refetch the forecast");
+      return original(input, init);
+    };
+  });
+  await tone.getByRole("button", { name: "Snarky" }).click();
+  await expect(tone.getByRole("button", { name: "Snarky" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(summary).not.toHaveText(before ?? "");
+  await expect(summary).toContainText("Expected total: 4.2 mm");
+  await expect(page.locator(".forecast-day-summary")).toHaveCount(7);
+  await page.reload();
+  await expect(tone.getByRole("button", { name: "Snarky" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(summary).toContainText("Expected total: 4.2 mm");
+});
+
+test("weather source switches, persists, and never relabels another source offline", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("combobox", { name: "Search for a location" })
+    .fill("Basel");
+  await page.getByRole("option", { name: /Basel/ }).click();
+  await expect(page.getByRole("heading", { name: /Basel/ })).toBeVisible();
+  const source = page.getByLabel("Weather source");
+  await source.selectOption("open-meteo");
+  await expect(
+    page.getByText("Not provided by Open-Meteo", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".forecast-day-confidence strong")).toHaveText(
+    Array(7).fill("—"),
+  );
+  await expect(
+    page.locator("footer").getByRole("link", { name: "Open-Meteo" }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(source).toHaveValue("open-meteo");
+  await expect(page.getByRole("heading", { name: /Basel/ })).toBeVisible();
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  await page.context().setOffline(true);
+  await page.reload();
+  await expect(page.getByText(/Saved forecast from/)).toBeVisible();
+  await expect(source).toHaveValue("open-meteo");
+  await source.selectOption("meteoblue");
+  await expect(page.locator(".standalone-error")).toContainText(
+    "No saved forecast is available for this weather source",
+  );
+  await expect(page.getByRole("heading", { name: /Basel/ })).toHaveCount(0);
 });
 
 test("a failed first forecast can be retried", async ({ page }) => {

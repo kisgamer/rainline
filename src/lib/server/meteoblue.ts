@@ -52,7 +52,7 @@ function signedUrl(
   return `${base}${path}?${params.toString()}`;
 }
 
-async function fetchJson(
+export async function fetchJson(
   url: string,
   cacheForSeconds: number,
 ): Promise<unknown> {

@@ -10,7 +10,13 @@ The integration follows the [meteoblue Forecast API schema](https://my.meteoblue
 2. Copy `.env.example` to `.env.local` and set `METEOBLUE_API_KEY` to a key with Basic Forecast and Location Search access. Set `METEOBLUE_API_SHARED_SECRET` only if your account requires signed URLs.
 3. Run `npm run dev` and open http://localhost:3000.
 
-The browser never receives the meteoblue key. There is no live demo fallback: without a valid key, API calls return a clear configuration or authorization error.
+The browser never receives API keys. Use the **Weather source** selector to switch between meteoblue (the default) and Open-Meteo. The choice is remembered on this device, and switching refreshes the selected location. Both forecast and location search use the selected provider. Open-Meteo works without a meteoblue key; meteoblue requires its configured credentials.
+
+The **Forecast tone** setting controls the daily summaries: Straight, Playful (the default), or Snarky. The wording varies by date and precipitation outlook, while temperatures and precipitation totals stay data-driven. This preference is stored locally and does not trigger another API request.
+
+Open-Meteo's public API is for non-commercial use. For a commercial deployment, configure `OPEN_METEO_API_KEY` with an appropriate Open-Meteo subscription; the server then uses its customer forecast and geocoding endpoints. See [Open-Meteo forecast documentation](https://open-meteo.com/en/docs) and [geocoding documentation](https://open-meteo.com/en/docs/geocoding-api). GPS works with either provider; Open-Meteo GPS forecasts use “Current location” because its geocoder does not reverse-geocode coordinates.
+
+Both same-origin endpoints accept `provider=meteoblue` or `provider=open-meteo`; omission defaults to meteoblue and unknown values return 400. Their normalized forecast includes a `source` field. Cache entries are isolated by provider. Only the latest successful forecast is stored offline; a snapshot from another provider is never presented as the selected source.
 
 ## Deployment
 
@@ -26,4 +32,4 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. After 
 
 ## Forecast semantics
 
-The hourly amount is the forecast precipitation in that hour. The hourly probability is the chance of measurable precipitation. Daily predictability reflects agreement among weather models across multiple weather conditions and is distinct from rain probability. Units are converted for display; the meteoblue response remains metric.
+The hourly amount is the forecast precipitation for the provider's hourly interval (Open-Meteo reports the preceding hour). The hourly probability is the chance of measurable precipitation. Daily predictability reflects agreement among weather models across multiple weather conditions and is distinct from rain probability. Open-Meteo does not supply an equivalent predictability score in this integration: its predictability and model timestamps remain null and the interface explicitly shows predictability as unavailable. Open-Meteo WMO condition codes are interpreted separately from meteoblue pictocodes. Units are converted for display; both source responses remain metric.

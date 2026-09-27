@@ -4,6 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as forecastGET } from "./forecast/route";
 import { GET as locationsGET } from "./locations/route";
 import {
+  getOpenMeteoForecast,
+  searchOpenMeteoPlaces,
+} from "@/lib/server/open-meteo";
+
+vi.mock("@/lib/server/open-meteo", () => ({
+  getOpenMeteoForecast: vi.fn(),
+  searchOpenMeteoPlaces: vi.fn(),
+}));
+import {
   getForecast,
   searchPlaces,
   WeatherApiError,
@@ -27,6 +36,41 @@ vi.mock("@/lib/server/meteoblue", () => ({
 describe("API route contracts", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  it("routes Open-Meteo requests independently and rejects unknown providers", async () => {
+    vi.mocked(searchOpenMeteoPlaces).mockResolvedValue([]);
+    const response = await locationsGET(
+      new NextRequest(
+        "http://localhost/api/locations?q=Basel&provider=open-meteo",
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(searchOpenMeteoPlaces).toHaveBeenCalledWith("Basel");
+    expect(searchPlaces).not.toHaveBeenCalled();
+    vi.mocked(getOpenMeteoForecast).mockRejectedValue(
+      new WeatherApiError("RATE_LIMIT", 503, "Weather service is busy."),
+    );
+    const forecast = await forecastGET(
+      new NextRequest(
+        "http://localhost/api/forecast?lat=47&lon=19&timezone=UTC&provider=open-meteo",
+      ),
+    );
+    expect(forecast.status).toBe(503);
+    expect(getOpenMeteoForecast).toHaveBeenCalledOnce();
+    expect(getForecast).not.toHaveBeenCalled();
+    for (const [handler, url] of [
+      [forecastGET, "forecast?lat=47&lon=19&timezone=UTC"],
+      [locationsGET, "locations?q=Basel"],
+    ] as const) {
+      expect(
+        (
+          await handler(
+            new NextRequest(`http://localhost/api/${url}&provider=unknown`),
+          )
+        ).status,
+      ).toBe(400);
+    }
   });
 
   it("rejects invalid query and coordinates before calling meteoblue", async () => {

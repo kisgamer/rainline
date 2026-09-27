@@ -29,6 +29,8 @@ export interface DailyForecast {
 }
 
 export interface Forecast {
+  /** Older offline snapshots without a source were produced by meteoblue. */
+  source?: WeatherProvider;
   location: Place;
   modelRunAt: string | null;
   modelUpdatedAt: string | null;
@@ -39,3 +41,4 @@ export interface Forecast {
 }
 
 export type UnitSystem = "metric" | "imperial";
+export type WeatherProvider = "meteoblue" | "open-meteo";

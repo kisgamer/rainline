@@ -2,14 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LocateFixed, MapPin, Search, X } from "lucide-react";
-import type { Place } from "@/lib/types";
+import type { Place, WeatherProvider } from "@/lib/types";
 
 interface Props {
   onSelect: (place: Place) => void;
   disabled?: boolean;
+  provider?: WeatherProvider;
 }
 
-export function LocationSearch({ onSelect, disabled = false }: Props) {
+export function LocationSearch({
+  onSelect,
+  disabled = false,
+  provider = "meteoblue",
+}: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Place[]>([]);
   const [open, setOpen] = useState(false);
@@ -27,7 +32,7 @@ export function LocationSearch({ onSelect, disabled = false }: Props) {
     const timeout = window.setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api/locations?q=${encodeURIComponent(query.trim())}`,
+          `/api/locations?q=${encodeURIComponent(query.trim())}&provider=${provider}`,
           { signal: controller.signal },
         );
         const body = await response.json();
@@ -53,7 +58,7 @@ export function LocationSearch({ onSelect, disabled = false }: Props) {
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [query]);
+  }, [query, provider]);
 
   function choose(place: Place) {
     onSelect(place);
@@ -87,20 +92,23 @@ export function LocationSearch({ onSelect, disabled = false }: Props) {
           timezone,
         };
         try {
-          const response = await fetch(
-            `/api/locations?q=${encodeURIComponent(`${latitude.toFixed(4)} ${longitude.toFixed(4)}`)}`,
-          );
-          if (response.ok) {
-            const body = await response.json();
-            const nearby = body.locations?.[0] as Place | undefined;
-            if (nearby)
-              label = {
-                ...label,
-                name: nearby.name,
-                administrativeArea: nearby.administrativeArea,
-                country: nearby.country,
-                timezone: nearby.timezone,
-              };
+          // Open-Meteo geocoding searches names, not reverse coordinates.
+          if (provider === "meteoblue") {
+            const response = await fetch(
+              `/api/locations?q=${encodeURIComponent(`${latitude.toFixed(4)} ${longitude.toFixed(4)}`)}&provider=${provider}`,
+            );
+            if (response.ok) {
+              const body = await response.json();
+              const nearby = body.locations?.[0] as Place | undefined;
+              if (nearby)
+                label = {
+                  ...label,
+                  name: nearby.name,
+                  administrativeArea: nearby.administrativeArea,
+                  country: nearby.country,
+                  timezone: nearby.timezone,
+                };
+            }
           }
         } catch {
           /* Coordinates still support a forecast. */

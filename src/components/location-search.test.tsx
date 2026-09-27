@@ -24,18 +24,55 @@ describe("LocationSearch", () => {
   );
   afterEach(() => vi.unstubAllGlobals());
 
-  it("debounces search and supports keyboard selection", async () => {
+  it.each(["meteoblue", "open-meteo"] as const)(
+    "debounces %s search and supports keyboard selection",
+    async (provider) => {
+      const onSelect = vi.fn();
+      render(<LocationSearch onSelect={onSelect} provider={provider} />);
+      const input = screen.getByRole("combobox");
+      fireEvent.change(input, { target: { value: "Basel" } });
+      await waitFor(() =>
+        expect(
+          screen.getByRole("option", { name: /Basel/ }),
+        ).toBeInTheDocument(),
+      );
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      expect(input).toHaveAttribute(
+        "aria-activedescendant",
+        "location-option-0",
+      );
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onSelect).toHaveBeenCalledWith(place);
+      expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain(
+        `provider=${provider}`,
+      );
+    },
+  );
+
+  it("uses GPS coordinates directly with Open-Meteo without calling reverse geocoding", async () => {
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      geolocation: {
+        getCurrentPosition: (
+          ok: (value: {
+            coords: { latitude: number; longitude: number };
+          }) => void,
+        ) => ok({ coords: { latitude: 47.55, longitude: 7.57 } }),
+      },
+    });
     const onSelect = vi.fn();
-    render(<LocationSearch onSelect={onSelect} />);
-    const input = screen.getByRole("combobox");
-    fireEvent.change(input, { target: { value: "Basel" } });
+    render(<LocationSearch onSelect={onSelect} provider="open-meteo" />);
+    fireEvent.click(screen.getByRole("button", { name: "Use my location" }));
     await waitFor(() =>
-      expect(screen.getByRole("option", { name: /Basel/ })).toBeInTheDocument(),
+      expect(onSelect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Current location",
+          latitude: 47.55,
+          longitude: 7.57,
+        }),
+      ),
     );
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    expect(input).toHaveAttribute("aria-activedescendant", "location-option-0");
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(onSelect).toHaveBeenCalledWith(place);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("shows a useful error when GPS permission is denied", async () => {

@@ -111,6 +111,7 @@ export function normalizeForecast(
     throw new Error("Empty meteoblue forecast response");
   const metadata = object(response?.metadata);
   return {
+    source: "meteoblue",
     location,
     modelRunAt: timestamp(metadata?.modelrun_utc),
     modelUpdatedAt: timestamp(metadata?.modelrun_updatetime_utc),

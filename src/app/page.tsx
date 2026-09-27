@@ -6,7 +6,6 @@ import {
   CalendarDays,
   ChartNoAxesCombined,
   CloudRain,
-  CloudSnow,
   CloudSun,
   Droplets,
   Info,
@@ -19,8 +18,15 @@ import { LocationSearch } from "@/components/location-search";
 import { InstallApp } from "@/components/install-app";
 import { PrecipitationChart } from "@/components/precipitation-chart";
 import { loadLastForecast, saveLastForecast } from "@/lib/offline";
-import { summarizeDay } from "@/lib/day-summary";
-import type { DailyForecast, Forecast, Place, UnitSystem } from "@/lib/types";
+import { summarizeDay, type ForecastTone } from "@/lib/day-summary";
+import { condition } from "@/lib/conditions";
+import type {
+  DailyForecast,
+  Forecast,
+  Place,
+  UnitSystem,
+  WeatherProvider,
+} from "@/lib/types";
 import {
   formatPercent,
   formatPrecipitation,
@@ -43,21 +49,6 @@ function dayLabel(date: string) {
     weekday: "short",
     timeZone: "UTC",
   }).format(new Date(`${date}T12:00:00Z`));
-}
-
-function condition(code: number | null, snow: number | null = null) {
-  if (snow !== null && snow >= 0.5) return { label: "Snow", icon: CloudSnow };
-  if (
-    code !== null &&
-    [8, 9, 10, 21, 22, 23, 24, 25, 27, 28, 29, 30].includes(code)
-  )
-    return { label: "Showers", icon: CloudRain };
-  if (
-    code !== null &&
-    [6, 7, 11, 12, 14, 16, 23, 25, 31, 33, 35].includes(code)
-  )
-    return { label: "Rain", icon: CloudRain };
-  return { label: "Variable", icon: CloudSun };
 }
 
 function predictabilityLabel(value: number | null, category: number | null) {
@@ -88,6 +79,9 @@ function LoadingDashboard() {
 export default function Home() {
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [units, setUnits] = useState<UnitSystem>("metric");
+  const [provider, setProvider] = useState<WeatherProvider>("meteoblue");
+  const [tone, setTone] = useState<ForecastTone>("playful");
+  const providerRef = useRef<WeatherProvider>("meteoblue");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [offline, setOffline] = useState(false);
@@ -97,23 +91,37 @@ export default function Home() {
   const [now, setNow] = useState(() => Date.now());
   const requestId = useRef(0);
 
-  const showSavedForecast = useCallback(async () => {
-    try {
-      const saved = await loadLastForecast();
-      if (saved) setForecast({ ...saved, freshness: "stale" });
-    } catch {
-      /* Storage may be unavailable in private browsing. */
-    }
-  }, []);
+  const showSavedForecast = useCallback(
+    async (source: WeatherProvider = providerRef.current) => {
+      const expectedRequest = requestId.current;
+      try {
+        const saved = await loadLastForecast();
+        if (
+          saved &&
+          (saved.source ?? "meteoblue") === source &&
+          source === providerRef.current &&
+          expectedRequest === requestId.current
+        ) {
+          setForecast({ ...saved, freshness: "stale" });
+          return true;
+        }
+      } catch {
+        /* Storage may be unavailable in private browsing. */
+      }
+      return false;
+    },
+    [],
+  );
 
   const loadForecast = useCallback(
-    async (place: Place) => {
+    async (place: Place, source: WeatherProvider = providerRef.current) => {
       const currentRequest = ++requestId.current;
       setAttemptedPlace(place);
       setLoading(true);
       setError("");
       try {
         const params = new URLSearchParams({
+          provider: source,
           lat: String(place.latitude),
           lon: String(place.longitude),
           timezone: place.timezone,
@@ -130,7 +138,7 @@ export default function Home() {
           throw new Error(
             body.error?.message || "Could not load the forecast.",
           );
-        const next = body as Forecast;
+        const next = { ...body, source: body.source ?? source } as Forecast;
         if (currentRequest !== requestId.current) return;
         setForecast(next);
         setRecent(place);
@@ -151,7 +159,15 @@ export default function Home() {
             ? reason.message
             : "Could not load the forecast.",
         );
-        await showSavedForecast();
+        const restored = await showSavedForecast(source);
+        if (
+          !restored &&
+          !navigator.onLine &&
+          currentRequest === requestId.current
+        )
+          setError(
+            "You’re offline. No saved forecast is available for this weather source.",
+          );
       } finally {
         if (currentRequest === requestId.current) setLoading(false);
       }
@@ -168,9 +184,21 @@ export default function Home() {
     const hydrate = window.setTimeout(async () => {
       let savedPlace: Place | null = null;
       try {
+        const savedProvider = localStorage.getItem("rainline-provider");
+        if (savedProvider === "meteoblue" || savedProvider === "open-meteo") {
+          providerRef.current = savedProvider;
+          setProvider(savedProvider);
+        }
         const savedUnits = localStorage.getItem("rainline-units");
         if (savedUnits === "metric" || savedUnits === "imperial")
           setUnits(savedUnits);
+        const savedTone = localStorage.getItem("rainline-tone");
+        if (
+          savedTone === "straight" ||
+          savedTone === "playful" ||
+          savedTone === "snarky"
+        )
+          setTone(savedTone);
         const raw = localStorage.getItem("rainline-recent-place");
         if (raw) {
           const place = JSON.parse(raw) as Place;
@@ -212,6 +240,33 @@ export default function Home() {
     }
   }
 
+  function changeTone(next: ForecastTone) {
+    setTone(next);
+    try {
+      localStorage.setItem("rainline-tone", next);
+    } catch {
+      /* Preference remains available for this session. */
+    }
+  }
+
+  function changeProvider(next: WeatherProvider) {
+    const place = forecast?.location ?? attemptedPlace ?? recent;
+    providerRef.current = next;
+    setProvider(next);
+    setForecast(null);
+    setError("");
+    try {
+      localStorage.setItem("rainline-provider", next);
+    } catch {
+      /* Optional preference storage. */
+    }
+    if (place) void loadForecast(place, next);
+  }
+
+  const displayedSource = forecast?.source ?? provider;
+  const sourceLabel =
+    displayedSource === "open-meteo" ? "Open-Meteo" : "meteoblue";
+
   const today = forecast?.daily[0];
   const summary = dailyStats(today, units);
   const nextRain = useMemo(
@@ -233,6 +288,7 @@ export default function Home() {
   const currentWeather = condition(
     currentHour?.conditionCode ?? null,
     currentHour?.snowFraction ?? null,
+    displayedSource,
   );
   const CurrentWeatherIcon = currentWeather.icon;
   const nextRainText =
@@ -271,7 +327,7 @@ export default function Home() {
           </div>
           <div className="top-actions">
             <span className="data-source">
-              POWERED BY <strong>meteoblue</strong>
+              POWERED BY <strong>{sourceLabel}</strong>
             </span>
             <InstallApp />
             <div className="unit-toggle" role="group" aria-label="Units">
@@ -292,6 +348,48 @@ export default function Home() {
             </div>
           </div>
         </header>
+        <div className="preferences-bar">
+          <div className="provider-control">
+            <label htmlFor="weather-provider">Weather source</label>
+            <select
+              id="weather-provider"
+              name="provider"
+              value={provider}
+              disabled={!ready || loading}
+              onChange={(event) =>
+                changeProvider(event.target.value as WeatherProvider)
+              }
+            >
+              <option value="meteoblue">meteoblue</option>
+              <option value="open-meteo">Open-Meteo</option>
+            </select>
+          </div>
+          <div className="forecast-tone">
+            <span id="forecast-tone-label">Forecast tone</span>
+            <div
+              className="tone-options"
+              role="group"
+              aria-labelledby="forecast-tone-label"
+            >
+              {(["straight", "playful", "snarky"] as ForecastTone[]).map(
+                (option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={tone === option}
+                    onClick={() => changeTone(option)}
+                  >
+                    {option === "straight"
+                      ? "Straight"
+                      : option === "playful"
+                        ? "Playful"
+                        : "Snarky"}
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
+        </div>
 
         {!forecast && (
           <div className="masthead">
@@ -331,6 +429,8 @@ export default function Home() {
             <span>YOUR LOCATION</span>
           </div>
           <LocationSearch
+            key={provider}
+            provider={provider}
             onSelect={(place) => void loadForecast(place)}
             disabled={loading}
           />
@@ -456,7 +556,9 @@ export default function Home() {
                 </div>
                 <div className="day-overview">
                   <p className="summary-eyebrow">TODAY, AT A GLANCE</p>
-                  <p className="today-summary">{summarizeDay(today, units)}</p>
+                  <p className="today-summary" aria-live="polite">
+                    {summarizeDay(today, units, tone)}
+                  </p>
                   <div className="next-rain-block">
                     <span className="rain-outlook-label">
                       <CloudRain size={18} aria-hidden="true" /> NEXT
@@ -489,16 +591,18 @@ export default function Home() {
                     {formatPercent(today?.predictability ?? null)}
                   </strong>
                   <small>
-                    {predictabilityLabel(
-                      today?.predictability ?? null,
-                      today?.predictabilityClass ?? null,
-                    )}{" "}
-                    confidence
+                    {displayedSource === "open-meteo"
+                      ? "Not provided by Open-Meteo"
+                      : `${predictabilityLabel(
+                          today?.predictability ?? null,
+                          today?.predictabilityClass ?? null,
+                        )} confidence`}
                   </small>
                 </div>
               </div>
             </section>
             <PrecipitationChart
+              source={displayedSource}
               hourly={forecast.hourly}
               units={units}
               timezone={forecast.location.timezone}
@@ -520,7 +624,11 @@ export default function Home() {
               </div>
               <div className="forecast-days">
                 {forecast.daily.map((day, index) => {
-                  const weather = condition(day.conditionCode);
+                  const weather = condition(
+                    day.conditionCode,
+                    null,
+                    displayedSource,
+                  );
                   const Icon = weather.icon;
                   return (
                     <article key={day.date} className="day-card forecast-day">
@@ -569,20 +677,23 @@ export default function Home() {
                         <span>Predictability</span>
                         <strong>{formatPercent(day.predictability)}</strong>
                         <small>
-                          {predictabilityLabel(
-                            day.predictability,
-                            day.predictabilityClass,
-                          )}{" "}
-                          confidence
+                          {displayedSource === "open-meteo"
+                            ? "Not provided"
+                            : `${predictabilityLabel(
+                                day.predictability,
+                                day.predictabilityClass,
+                              )} confidence`}
                         </small>
-                        <span className="confidence-track" aria-hidden="true">
-                          <span
-                            style={{ width: `${day.predictability ?? 0}%` }}
-                          />
-                        </span>
+                        {day.predictability !== null && (
+                          <span className="confidence-track" aria-hidden="true">
+                            <span
+                              style={{ width: `${day.predictability ?? 0}%` }}
+                            />
+                          </span>
+                        )}
                       </div>
                       <p className="forecast-day-summary">
-                        {summarizeDay(day, units)}
+                        {summarizeDay(day, units, tone)}
                       </p>
                     </article>
                   );
@@ -591,12 +702,21 @@ export default function Home() {
             </section>
             <aside className="insight-note">
               <Info size={19} />
-              <p>
-                <strong>What does predictability mean?</strong> It reflects
-                agreement among forecast models across weather conditions. It is
-                different from the chance of rain. A high rain chance can still
-                appear with lower overall predictability.
-              </p>
+              {displayedSource === "open-meteo" ? (
+                <p>
+                  <strong>About this forecast.</strong> Open-Meteo provides
+                  precipitation amounts and probabilities, but no equivalent
+                  meteoblue predictability score. Predictability is shown as
+                  unavailable.
+                </p>
+              ) : (
+                <p>
+                  <strong>What does predictability mean?</strong> It reflects
+                  agreement among forecast models across weather conditions. It
+                  is different from the chance of rain. A high rain chance can
+                  still appear with lower overall predictability.
+                </p>
+              )}
             </aside>
             <nav className="mobile-dock" aria-label="Forecast sections">
               <a href="#now">
@@ -635,13 +755,30 @@ export default function Home() {
           <span>
             Weather data by{" "}
             <a
-              href="https://www.meteoblue.com"
+              href={
+                displayedSource === "open-meteo"
+                  ? "https://open-meteo.com/"
+                  : "https://www.meteoblue.com"
+              }
               target="_blank"
               rel="noopener noreferrer"
             >
-              meteoblue
+              {sourceLabel}
             </a>{" "}
-            · Built for planning around precipitation
+            {displayedSource === "open-meteo" ? (
+              <>
+                · Location data by{" "}
+                <a
+                  href="https://www.geonames.org/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  GeoNames
+                </a>
+              </>
+            ) : (
+              "· Built for planning around precipitation"
+            )}
           </span>
         </footer>
       </main>
